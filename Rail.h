@@ -18,6 +18,9 @@ class Rail
       long _targetRotations = 0;
       long _currentRotations = 0;
       int _currentDirection = 0;
+      int _moveSpeed = 1000;
+      int _nextActionTime = 0;
+      int _currentStatus = LOW;
   
   public:
       EasyButton _homeInterruptButton = 0;
@@ -25,13 +28,16 @@ class Rail
       Rail();
       int directionHome = LOW;
       int directionAway = HIGH;
+      int fast = 600;
+      int slow = 1000;
+      int veryslow = 2000;
       int stepsPerRevolution = 200;
       void init(int stepPin, int dirPin, int homePin, int limitPin);
       void goHome();
       bool isHome();
       void homeISR();
       void limitISR();
-      bool moveRail(long rotations, int moveDirectionection);
+      bool moveRail(long rotations, int moveDirection, int speed);
       void tick();
 };
 
