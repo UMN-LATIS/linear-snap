@@ -21,6 +21,7 @@ class Rail
       int _moveSpeed = 1000;
       int _nextActionTime = 0;
       int _currentStatus = LOW;
+      char _rail;
   
   public:
       EasyButton _homeInterruptButton = 0;
@@ -32,11 +33,12 @@ class Rail
       int slow = 1000;
       int veryslow = 2000;
       int stepsPerRevolution = 200;
-      void init(int stepPin, int dirPin, int homePin, int limitPin);
+      void init(char rail, int stepPin, int dirPin, int homePin, int limitPin);
       void goHome();
       bool isHome();
       void homeISR();
       void limitISR();
+      void stop();
       bool moveRail(long rotations, int moveDirection, int speed);
       void tick();
 };

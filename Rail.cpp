@@ -4,7 +4,8 @@ Rail::Rail() {
   
 }
 
-void Rail::init(int stepPin, int dirPin, int homePin, int limitPin) {
+void Rail::init(char rail, int stepPin, int dirPin, int homePin, int limitPin) {
+    _rail = rail;
     _stepPin = stepPin;
     _dirPin = dirPin;
     _homePin = homePin;
@@ -46,6 +47,7 @@ void Rail::homeISR() {
     _homeInterrupt = _homeInterruptButton.read();
     if(_homeInterrupt) {
       _homePosition = _current_position;
+      Serial.println(_rail + " M Complete");
     }
 }
 
@@ -100,4 +102,13 @@ void Rail::tick() {
       
       
   }
+
+  if(_currentRotations >= _targetRotations) {
+    Serial.println(_rail + " M STOP " + _current_position);
+  }
+}
+
+void Rail::stop() {
+  _currentRotations = _targetRotations;
+  _nextActionTime = 0;
 }
