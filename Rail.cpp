@@ -13,17 +13,13 @@ void Rail::init(char rail, int stepPin, int dirPin, int homePin, int limitPin) {
     pinMode(_stepPin, OUTPUT);
     pinMode(_dirPin, OUTPUT);
 
-//    _homeInterruptButton = EasyButton(_homePin, 10, false, false);
-//    _homeInterruptButton.begin();
-//    _limitInterruptButton = EasyButton(this->_limitPin, 10, false, false);
-//    _limitInterruptButton.begin();
-//    _limitInterruptButton.enableInterrupt(limitISR);
-    // pinMode(_stepPin, OUTPUT);
-    // pinMode(_dirPin, OUTPUT);
-    // pinMode(_homePin, INPUT);
-    // pinMode(_limitPin, INPUT);
-    // digitalWrite(_stepPin, LOW);
-    // digitalWrite(_dirPin, LOW);
+    _homeInterruptButton = Button(_homePin);
+    _homeInterruptButton.begin();
+    _homeInterrupt = _homeInterruptButton.read();
+    _limitInterruptButton = Button(_limitPin);
+    _limitInterruptButton.begin();
+//    _limitInterrupt = _limitInterruptButton.read();
+
     _current_position = 0;
   
 }
@@ -38,22 +34,34 @@ void Rail::goHome() {
 
 bool Rail::isHome() {
     if(_current_position == _homePosition) {
+        Serial.println("Home:" + _rail);
         return true;
     }
     return false;
 }
 
+bool Rail::atPosition() {
+  if(_currentRotations == _targetRotations) {
+    return true;
+  }
+  return false;
+}
+
 void Rail::homeISR() {
+    int oldState = _homeInterrupt;
     _homeInterrupt = _homeInterruptButton.read();
-    if(_homeInterrupt) {
+    if(_homeInterrupt != oldState) {
       _homePosition = _current_position;
-      Serial.println(_rail + " M Complete");
+      _targetRotations = 0;
     }
 }
 
 void Rail::limitISR()
 {
+    int oldState = _limitInterrupt;
     _limitInterrupt = _limitInterruptButton.read();
+    if(_limitInterrupt != oldState) {
+    }
 }
 
 bool Rail::moveRail(long rotations, int moveDirection, int speed) {
@@ -62,11 +70,12 @@ bool Rail::moveRail(long rotations, int moveDirection, int speed) {
     _currentRotations = 0;
     _currentDirection = moveDirection;
     _moveSpeed = speed;
+    _nextActionTime = 0;
     return true;
 }
 
 void Rail::tick() {
-  if(_currentRotations < _targetRotations && millis() >= _nextActionTime) {
+  if(_currentRotations < _targetRotations && micros() >= _nextActionTime) {
     if(_limitInterrupt == true && _currentDirection == directionAway) {
           digitalWrite(_stepPin, LOW);  
           _currentStatus = LOW;
@@ -96,15 +105,13 @@ void Rail::tick() {
           _current_position++;
         }
       }
-      
-      _nextActionTime = millis() + _moveSpeed;  
-      
+
+      _nextActionTime = micros() + _moveSpeed;  
       
       
   }
 
   if(_currentRotations >= _targetRotations) {
-    Serial.println(_rail + " M STOP " + _current_position);
   }
 }
 

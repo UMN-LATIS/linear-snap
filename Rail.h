@@ -1,8 +1,8 @@
 #ifndef RAIL_H
 #define RAIL_H
 #include <Arduino.h>
-#include <EasyButton.h>
-
+//#include <EasyButton.h>
+#include <Button.h>
 
 class Rail
 {
@@ -10,22 +10,25 @@ class Rail
       long _current_position;
       int _stepPin;
       int _dirPin;
-      int _homePin;
+//      int _homePin;
       int _limitPin;
       int _homePosition = 0;
-      bool _homeInterrupt = false;
+//      bool _homeInterrupt = false;
       bool _limitInterrupt = false;
       long _targetRotations = 0;
       long _currentRotations = 0;
       int _currentDirection = 0;
       int _moveSpeed = 1000;
-      int _nextActionTime = 0;
+      unsigned long _nextActionTime = 0;
       int _currentStatus = LOW;
       char _rail;
   
   public:
-      EasyButton _homeInterruptButton = 0;
-      EasyButton _limitInterruptButton = 0;
+    int _homePin;
+      bool _homeInterrupt = false;
+      long _currentRotations = 0;
+      Button _homeInterruptButton = 0;
+      Button _limitInterruptButton = 0;
       Rail();
       int directionHome = LOW;
       int directionAway = HIGH;
@@ -36,6 +39,7 @@ class Rail
       void init(char rail, int stepPin, int dirPin, int homePin, int limitPin);
       void goHome();
       bool isHome();
+      bool atPosition();
       void homeISR();
       void limitISR();
       void stop();
