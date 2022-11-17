@@ -3,21 +3,38 @@
 #include "Adafruit_VL6180X.h"
 #include <movingAvg.h>
 
+
+#define short_home_pin 19
+#define short_interrupt_pin 3
+#define long_home_pin 2
+#define long_interrupt_pin 18
+
+#define short_step_pin 32
+#define short_dir_pin 31
+#define long_step_pin 34
+#define long_dir_pin 35
+
+#define focus_average_count 10
+
 Rail longRail;
 Rail shortRail;
 SerialCommand sCmd;
 Adafruit_VL6180X vl = Adafruit_VL6180X();
-movingAvg distance(10);  
 unsigned long nextFocusTime;
+movingAvg distance(focus_average_count);
+
+
 
 enum targetOperation {
   stopped,
   goHomeOperation,
   findFocusOperation,
-  moveRailOperation
+  moveRailOperation,
+  runRailOperation
 };
 
 int coreSurface;
+int focusSampleCount = 0;
 
 targetOperation currentOperation;
 
@@ -31,6 +48,8 @@ void setup() {
     Serial.println("Failed to find sensor");
     while (1);
   }
+
+  vl.startRangeContinuous(50);
   
   Serial.println("Rebooting");
   sCmd.addCommand("H", goHome);
@@ -38,11 +57,15 @@ void setup() {
   sCmd.addCommand("R", runRail);
   sCmd.addCommand("S", stopRail);
   sCmd.addCommand("F", findFocus);
+  sCmd.addCommand("G", getFocus);
   sCmd.addCommand("P", takePhoto);
   sCmd.addCommand("I", getInterrupt);
-  shortRail.init('S', 32, 31, 19, 3);
-  longRail.init('L', 34, 35, 18, 19);
+  shortRail.init('S', short_step_pin, short_dir_pin, short_home_pin, short_interrupt_pin);
+  longRail.init('L', long_step_pin, long_dir_pin, long_home_pin, long_interrupt_pin);
   attachInterrupt(digitalPinToInterrupt(shortRail._homePin), localISR, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(shortRail._limitPin), localISR, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(longRail._homePin), localISR, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(longRail._limitPin), localISR, CHANGE);
   Serial.println("Ready to go!");
   distance.begin();
   nextFocusTime = micros();
@@ -52,11 +75,7 @@ void loop() {
   longRail.tick();
   shortRail.tick();
   sCmd.readSerial();
-  
-  if(nextFocusTime < micros()) {
-    updateFocus();
-    nextFocusTime = micros() + 10000;
-  }
+  long focusReadTime = 50000;
 
   switch(currentOperation) {
     case goHomeOperation:
@@ -78,76 +97,81 @@ void loop() {
         Serial.println("POSITIONED");
         currentOperation = stopped;
       }
+      break;
+    case runRailOperation:
+      focusReadTime = 999999999;
+      if(shortRail.atPosition() && longRail.atPosition()) {
+        Serial.println("POSITIONED");
+        currentOperation = stopped;
+      }
+      break;
+  }
+
+   
+  if(nextFocusTime < micros()) {
+    updateFocus();
+    nextFocusTime = micros() + focusReadTime;
   }
 }
 
 void localISR() {
-//  longRail.homeISR();
-//  longRail.limitISR();
-  shortRail.homeISR();
-//  shortRail.limitISR();
   
+  static unsigned long last_interrupt_time = 0;
+  unsigned long interrupt_time = millis();
+  // If interrupts come faster than 200ms, assume it's a bounce and ignore
+  if (interrupt_time - last_interrupt_time > 200) 
+  {
+    longRail.homeISR();
+    longRail.limitISR();
+    shortRail.homeISR();
+    shortRail.limitISR();
+  }
+  last_interrupt_time = interrupt_time;
   
-  
+}
+
+void getFocus() {
+  updateFocus();
+  Serial.println(distance.getAvg());
 }
 
 void findFocus() {
   currentOperation = findFocusOperation;
-  coreSurface = 0;
-  if(distance.getAvg() < 30.0) {
-    shortRail.move(10, 1, 500);
+  if(!shortRail.atPosition()) {
+    return;
   }
-  else if(distance.getAvg() > 32.0) {
-    shortRail.move(10, 0, 500);
+
+  coreSurface = 0;
+  float average = distance.getAvg();
+  if(average < 140.0) {
+    if(average < 120.0) {
+      shortRail.moveRail(100, 0, 2000);
+    }
+    else {
+      shortRail.moveRail(20, 0, 2000);  
+    }
+    
+  }
+  else if(average > 145.0) {
+    if(average > 165.0) {
+      shortRail.moveRail(100, 1, 2000);
+    }
+    else {
+      shortRail.moveRail(20, 1, 2000);  
+    }
+    
   }
   else {
     coreSurface = shortRail._currentRotations;
+    currentOperation = stopped;
     
   }
-  
   
 }
 
 void updateFocus() { 
-  float lux = vl.readLux(VL6180X_ALS_GAIN_5);
-  uint8_t range = vl.readRange();
-  uint8_t status = vl.readRangeStatus();
+  uint8_t range = vl.readRangeResult();
   distance.reading(range);
-  if (status == VL6180X_ERROR_NONE) {
-//    Serial.print("Range: "); Serial.println(distance.getAvg());
-  }
-
-  
-
-//  // Some error occurred, print it out!
-//  
-//  if  ((status >= VL6180X_ERROR_SYSERR_1) && (status <= VL6180X_ERROR_SYSERR_5)) {
-//    Serial.println("System error");
-//  }
-//  else if (status == VL6180X_ERROR_ECEFAIL) {
-//    Serial.println("ECE failure");
-//  }
-//  else if (status == VL6180X_ERROR_NOCONVERGE) {
-//    Serial.println("No convergence");
-//  }
-//  else if (status == VL6180X_ERROR_RANGEIGNORE) {
-//    Serial.println("Ignoring range");
-//  }
-//  else if (status == VL6180X_ERROR_SNR) {
-//    Serial.println("Signal/Noise error");
-//  }
-//  else if (status == VL6180X_ERROR_RAWUFLOW) {
-//    Serial.println("Raw reading underflow");
-//  }
-//  else if (status == VL6180X_ERROR_RAWOFLOW) {
-//    Serial.println("Raw reading overflow");
-//  }
-//  else if (status == VL6180X_ERROR_RANGEUFLOW) {
-//    Serial.println("Range reading underflow");
-//  }
-//  else if (status == VL6180X_ERROR_RANGEOFLOW) {
-//    Serial.println("Range reading overflow");
-//  }
 }
 
 void goHome() {
@@ -157,14 +181,15 @@ void goHome() {
 }
 
 void getInterrupt() {
+  localISR();
   Serial.print("Short Rail (H/L) ");
   Serial.print(shortRail._homeInterrupt);
   Serial.print(" ");
-  Serial.println(shortRail._homeInterrupt);
+  Serial.println(shortRail._limitInterrupt);
   Serial.print("Long Rail (H/L) ");
   Serial.print(longRail._homeInterrupt);
   Serial.print(" ");
-  Serial.println(longRail._homeInterrupt);
+  Serial.println(longRail._limitInterrupt);
   
 }
 
@@ -202,6 +227,7 @@ void runRail() {
   else {
     longRail.moveRail(999999, atoi(direction), atoi(speed));
   }
+  currentOperation = runRailOperation;
 }
 
 void stopRail() {

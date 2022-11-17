@@ -11,12 +11,11 @@ class Rail
       int _stepPin;
       int _dirPin;
 //      int _homePin;
-      int _limitPin;
+//      int _limitPin;
       int _homePosition = 0;
 //      bool _homeInterrupt = false;
-      bool _limitInterrupt = false;
+//      bool _limitInterrupt = false;
       long _targetRotations = 0;
-      long _currentRotations = 0;
       int _currentDirection = 0;
       int _moveSpeed = 1000;
       unsigned long _nextActionTime = 0;
@@ -25,7 +24,9 @@ class Rail
   
   public:
     int _homePin;
+    int _limitPin;
       bool _homeInterrupt = false;
+      bool _limitInterrupt = false;
       long _currentRotations = 0;
       Button _homeInterruptButton = 0;
       Button _limitInterruptButton = 0;
