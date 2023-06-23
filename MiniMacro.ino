@@ -4,15 +4,17 @@
 #include <movingAvg.h>
 
 
-#define short_home_pin 19
+#define short_home_pin 2
 #define short_interrupt_pin 3
-#define long_home_pin 2
-#define long_interrupt_pin 18
+#define long_home_pin 18
+#define long_interrupt_pin 19
 
 #define short_step_pin 32
 #define short_dir_pin 31
 #define long_step_pin 34
 #define long_dir_pin 35
+
+#define photo_pin 45
 
 #define focus_average_count 10
 
@@ -23,7 +25,7 @@ Adafruit_VL6180X vl = Adafruit_VL6180X();
 unsigned long nextFocusTime;
 movingAvg distance(focus_average_count);
 
-
+long previousTime;
 
 enum targetOperation {
   stopped,
@@ -40,16 +42,16 @@ targetOperation currentOperation;
 
 void setup() {
   
-  Serial.begin(9600);
+  Serial.begin(115200);
   while (!Serial) {
     delay(1);
   }
-  if (! vl.begin()) {
-    Serial.println("Failed to find sensor");
-    while (1);
-  }
+//  if (! vl.begin()) {
+//    Serial.println("Failed to find sensor");
+//    while (1);
+//  }
 
-  vl.startRangeContinuous(50);
+//  vl.startRangeContinuous(50);
   
   Serial.println("Rebooting");
   sCmd.addCommand("H", goHome);
@@ -62,11 +64,14 @@ void setup() {
   sCmd.addCommand("I", getInterrupt);
   shortRail.init('S', short_step_pin, short_dir_pin, short_home_pin, short_interrupt_pin);
   longRail.init('L', long_step_pin, long_dir_pin, long_home_pin, long_interrupt_pin);
+
   attachInterrupt(digitalPinToInterrupt(shortRail._homePin), localISR, CHANGE);
   attachInterrupt(digitalPinToInterrupt(shortRail._limitPin), localISR, CHANGE);
   attachInterrupt(digitalPinToInterrupt(longRail._homePin), localISR, CHANGE);
   attachInterrupt(digitalPinToInterrupt(longRail._limitPin), localISR, CHANGE);
   Serial.println("Ready to go!");
+  pinMode(photo_pin, OUTPUT);
+  digitalWrite(photo_pin, LOW);
   distance.begin();
   nextFocusTime = micros();
 }
@@ -76,6 +81,7 @@ void loop() {
   shortRail.tick();
   sCmd.readSerial();
   long focusReadTime = 50000;
+  
 
   switch(currentOperation) {
     case goHomeOperation:
@@ -84,14 +90,14 @@ void loop() {
         currentOperation = stopped;
       }
       break;
-    case findFocusOperation: 
-      findFocus();
-      if(coreSurface > 0) {
-        currentOperation = stopped;
-        Serial.print("FOCUS:");
-        Serial.println(coreSurface);
-      }
-      break;
+//    case findFocusOperation: 
+//      findFocus();
+//      if(coreSurface > 0) {
+//        currentOperation = stopped;
+//        Serial.print("FOCUS:");
+//        Serial.println(coreSurface);
+//      }
+//      break;
     case moveRailOperation:
       if(shortRail.atPosition() && longRail.atPosition()) {
         Serial.println("POSITIONED");
@@ -106,27 +112,28 @@ void loop() {
       }
       break;
   }
-
-   
-  if(nextFocusTime < micros()) {
-    updateFocus();
-    nextFocusTime = micros() + focusReadTime;
-  }
+//
+//   
+//  if(nextFocusTime < micros()) {
+//    updateFocus();
+//    nextFocusTime = micros() + focusReadTime;
+//  }
 }
 
 void localISR() {
-  
   static unsigned long last_interrupt_time = 0;
   unsigned long interrupt_time = millis();
   // If interrupts come faster than 200ms, assume it's a bounce and ignore
-  if (interrupt_time - last_interrupt_time > 200) 
-  {
-    longRail.homeISR();
-    longRail.limitISR();
+//  if (interrupt_time - last_interrupt_time > 10) 
+//  {
     shortRail.homeISR();
     shortRail.limitISR();
-  }
+    longRail.homeISR();
+    longRail.limitISR();
+//  }
   last_interrupt_time = interrupt_time;
+
+  
   
 }
 
@@ -244,5 +251,9 @@ void stopRail() {
 
 
 void takePhoto() {
-  
+  Serial.println("start capture");
+  digitalWrite(photo_pin, HIGH);
+  delay(200); // May want to adjust this depending on shot type
+  digitalWrite(photo_pin, LOW);
+//  Serial.println("end capture");
 }

@@ -12,7 +12,7 @@ class Rail
       int _dirPin;
 //      int _homePin;
 //      int _limitPin;
-      int _homePosition = 0;
+      int _homePosition = -9999;
 //      bool _homeInterrupt = false;
 //      bool _limitInterrupt = false;
       long _targetRotations = 0;
