@@ -38,7 +38,7 @@ class Rail
       int veryslow = 2000;
       int stepsPerRevolution = 200;
       void init(char rail, int stepPin, int dirPin, int homePin, int limitPin);
-      void goHome();
+      void goHome(int speed);
       bool isHome();
       bool atPosition();
       void homeISR();

@@ -1,42 +1,41 @@
 #include "Rail.h"
 #include "SerialCommand.h"
-#include "Adafruit_VL6180X.h"
-#include <movingAvg.h>
 
 
 #define short_home_pin 2
 #define short_interrupt_pin 3
 #define long_home_pin 18
-#define long_interrupt_pin 19
+#define long_interrupt_pin 17
+//le
+ #define short_step_pin 5
+#define short_dir_pin 4
+ #define long_step_pin 7
+ #define long_dir_pin 6
+#define photo_pin 8
 
-#define short_step_pin 32
-#define short_dir_pin 31
-#define long_step_pin 34
-#define long_dir_pin 35
+#define led_pin 19
+//#define short_step_pin 32
+//#define short_dir_pin 31
+//#define long_step_pin 34
+//#define long_dir_pin 35
+//#define photo_pin 45
 
-#define photo_pin 45
+#define DEBOUNCE_TIME 10
 
-#define focus_average_count 10
 
 Rail longRail;
 Rail shortRail;
 SerialCommand sCmd;
-Adafruit_VL6180X vl = Adafruit_VL6180X();
-unsigned long nextFocusTime;
-movingAvg distance(focus_average_count);
 
 long previousTime;
 
 enum targetOperation {
   stopped,
   goHomeOperation,
-  findFocusOperation,
   moveRailOperation,
   runRailOperation
 };
 
-int coreSurface;
-int focusSampleCount = 0;
 
 targetOperation currentOperation;
 
@@ -58,29 +57,36 @@ void setup() {
   sCmd.addCommand("M", moveRail);
   sCmd.addCommand("R", runRail);
   sCmd.addCommand("S", stopRail);
-  sCmd.addCommand("F", findFocus);
-  sCmd.addCommand("G", getFocus);
   sCmd.addCommand("P", takePhoto);
   sCmd.addCommand("I", getInterrupt);
+  sCmd.addCommand("L0", lightOff);
+  sCmd.addCommand("L1", lightOn);
   shortRail.init('S', short_step_pin, short_dir_pin, short_home_pin, short_interrupt_pin);
   longRail.init('L', long_step_pin, long_dir_pin, long_home_pin, long_interrupt_pin);
+  pinMode(short_home_pin, INPUT_PULLUP);
+  pinMode(short_interrupt_pin, INPUT_PULLUP);
+  pinMode(long_interrupt_pin, INPUT_PULLUP);
+  pinMode(long_home_pin, INPUT_PULLUP);
+  pinMode(led_pin, OUTPUT);
+  digitalWrite(led_pin, HIGH);
+  
+  attachInterrupt(digitalPinToInterrupt(short_home_pin), shortHomeISR, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(short_interrupt_pin), shortLimitISR, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(long_home_pin), longHomeISR, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(long_interrupt_pin), longLimitISR, CHANGE);
+  delay(1000);
+  Serial.println("reading interrupts");
+  getInterrupt();
 
-  attachInterrupt(digitalPinToInterrupt(shortRail._homePin), localISR, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(shortRail._limitPin), localISR, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(longRail._homePin), localISR, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(longRail._limitPin), localISR, CHANGE);
   Serial.println("Ready to go!");
   pinMode(photo_pin, OUTPUT);
   digitalWrite(photo_pin, LOW);
-  distance.begin();
-  nextFocusTime = micros();
 }
 
 void loop() {
   longRail.tick();
   shortRail.tick();
   sCmd.readSerial();
-  long focusReadTime = 50000;
   
 
   switch(currentOperation) {
@@ -90,14 +96,6 @@ void loop() {
         currentOperation = stopped;
       }
       break;
-//    case findFocusOperation: 
-//      findFocus();
-//      if(coreSurface > 0) {
-//        currentOperation = stopped;
-//        Serial.print("FOCUS:");
-//        Serial.println(coreSurface);
-//      }
-//      break;
     case moveRailOperation:
       if(shortRail.atPosition() && longRail.atPosition()) {
         Serial.println("POSITIONED");
@@ -105,90 +103,67 @@ void loop() {
       }
       break;
     case runRailOperation:
-      focusReadTime = 999999999;
       if(shortRail.atPosition() && longRail.atPosition()) {
         Serial.println("POSITIONED");
         currentOperation = stopped;
       }
       break;
   }
-//
-//   
-//  if(nextFocusTime < micros()) {
-//    updateFocus();
-//    nextFocusTime = micros() + focusReadTime;
-//  }
+
 }
 
-void localISR() {
+bool okToInterrupt() {
   static unsigned long last_interrupt_time = 0;
   unsigned long interrupt_time = millis();
   // If interrupts come faster than 200ms, assume it's a bounce and ignore
-//  if (interrupt_time - last_interrupt_time > 10) 
-//  {
-    shortRail.homeISR();
-    shortRail.limitISR();
-    longRail.homeISR();
-    longRail.limitISR();
-//  }
-  last_interrupt_time = interrupt_time;
-
-  
+  if (interrupt_time - last_interrupt_time > 200) 
+  {
+     return true;
+  }
+  return false;
   
 }
 
-void getFocus() {
-  updateFocus();
-  Serial.println(distance.getAvg());
+// Define the ISRs
+void shortHomeISR() {
+    if(okToInterrupt()) {
+      shortRail.homeISR();
+    }
 }
 
-void findFocus() {
-  currentOperation = findFocusOperation;
-  if(!shortRail.atPosition()) {
-    return;
-  }
+void shortLimitISR() {
+    if(okToInterrupt()) {
+      shortRail.limitISR();
+    }
+}
 
-  coreSurface = 0;
-  float average = distance.getAvg();
-  if(average < 140.0) {
-    if(average < 120.0) {
-      shortRail.moveRail(100, 0, 2000);
+void longHomeISR() {
+    if(okToInterrupt()) {
+      longRail.homeISR();
     }
-    else {
-      shortRail.moveRail(20, 0, 2000);  
-    }
-    
-  }
-  else if(average > 145.0) {
-    if(average > 165.0) {
-      shortRail.moveRail(100, 1, 2000);
-    }
-    else {
-      shortRail.moveRail(20, 1, 2000);  
-    }
-    
-  }
-  else {
-    coreSurface = shortRail._currentRotations;
-    currentOperation = stopped;
-    
-  }
   
 }
 
-void updateFocus() { 
-  uint8_t range = vl.readRangeResult();
-  distance.reading(range);
+void longLimitISR() {
+    if(okToInterrupt()) {
+      longRail.limitISR();
+    }
+ 
 }
+
+
 
 void goHome() {
-  shortRail.goHome();
-  longRail.goHome();
+  shortRail.goHome(shortRail.slow);
+  longRail.goHome(longRail.fast);
   currentOperation = goHomeOperation;
 }
 
 void getInterrupt() {
-  localISR();
+  shortHomeISR();
+  shortLimitISR();
+  longHomeISR();
+  longLimitISR();
   Serial.print("Short Rail (H/L) ");
   Serial.print(shortRail._homeInterrupt);
   Serial.print(" ");
@@ -218,6 +193,14 @@ void moveRail() {
   else {
     longRail.moveRail(atoi(distance), atoi(direction), atoi(speed));
   }
+}
+
+void lightOn() {
+  digitalWrite(led_pin, LOW);
+}
+
+void lightOff() {
+  digitalWrite(led_pin, HIGH);
 }
 
 void runRail() {

@@ -12,24 +12,20 @@ void Rail::init(char rail, int stepPin, int dirPin, int homePin, int limitPin) {
     pinMode(_stepPin, OUTPUT);
     pinMode(_dirPin, OUTPUT);
 
-    _homeInterruptButton = Button(_homePin);
-    _homeInterruptButton.begin();
-    homeISR();
-    _limitInterruptButton = Button(_limitPin);
-    _limitInterruptButton.begin();
-    limitISR();
+   homeISR();
+   limitISR();
 
     _current_position = 0;
   
 }
 
-void Rail::goHome() {
+void Rail::goHome(int speed) {
     homeISR();
     if(isHome()) {
         return;
     }
     
-    moveRail(999999, directionHome, fast);
+    moveRail(999999, directionHome, speed);
 }
 
 bool Rail::isHome() {
@@ -50,8 +46,7 @@ bool Rail::atPosition() {
 void Rail::homeISR() {
  
     int oldState = _homeInterrupt;
-    _homeInterrupt = _homeInterruptButton.read();
-
+    _homeInterrupt = digitalRead(_homePin) == LOW;
     if(_homeInterrupt != oldState && _homeInterrupt == true && _currentDirection == directionHome) {
       _homePosition = _current_position;
       _targetRotations = 0;
@@ -63,8 +58,8 @@ void Rail::homeISR() {
 void Rail::limitISR()
 {
     int oldState = _limitInterrupt;
-    _limitInterrupt = _limitInterruptButton.read();
-    if(_limitInterrupt != oldState && _limitInterrupt == true && _currentDirection == directionHome) {
+    _limitInterrupt = digitalRead(_limitPin) == LOW;
+    if(_limitInterrupt != oldState && _limitInterrupt == true && _currentDirection == directionAway) {
 //        Serial.print("LIMIT");
 //        Serial.println(_rail);
         stop();
@@ -118,8 +113,9 @@ void Rail::tick() {
       
   }
 
+  
+  if(_currentRotations > _targetRotations) {
 
-  if(_currentRotations >= _targetRotations) {
   }
 }
 
