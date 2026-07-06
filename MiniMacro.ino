@@ -5,7 +5,7 @@
 #define short_home_pin 2
 #define short_interrupt_pin 3
 #define long_home_pin 18
-#define long_interrupt_pin 17
+#define long_interrupt_pin 19
 //le
  #define short_step_pin 5
 #define short_dir_pin 4
@@ -13,7 +13,7 @@
  #define long_dir_pin 6
 #define photo_pin 8
 
-#define led_pin 19
+#define led_pin 22
 //#define short_step_pin 32
 //#define short_dir_pin 31
 //#define long_step_pin 34
